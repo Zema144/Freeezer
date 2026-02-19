@@ -69,7 +69,7 @@ def get_db():
         db.close()
 
 
-# --- ТВОЇ ЕНДПОІНТИ FASTAPI (БЕЗ ЗМІН) ---
+# --- ЕНДПОІНТ ДЛЯ ДОДАВАННЯ ПРОДУКТУ ---
 @app.post("/api/upload/")
 async def upload_product(
         product_name: str = Form(...),
@@ -108,3 +108,23 @@ async def upload_product(
     db.commit()
 
     return {"status": "success", "message": "Продукт успішно оброблено!", "date_status": date_status_msg}
+
+
+# --- НОВІ ЕНДПОІНТИ ДЛЯ СПИСКУ ТА ВИДАЛЕННЯ ---
+
+@app.get("/api/products/")
+def get_active_products(db: SessionLocal = Depends(get_db)):
+    """Повертає всі продукти, які ще є в холодильнику (статус active)"""
+    products = db.query(Product).filter(Product.status == "active").all()
+    return products
+
+
+@app.post("/api/products/{product_id}/consume")
+def consume_product(product_id: int, db: SessionLocal = Depends(get_db)):
+    """Позначає продукт як з'їдений (змінює статус на consumed)"""
+    product = db.query(Product).filter(Product.id == product_id).first()
+    if product:
+        product.status = "consumed"
+        db.commit()
+        return {"status": "success", "message": "Продукт видалено з холодильника"}
+    return {"status": "error", "message": "Продукт не знайдено"}
