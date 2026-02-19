@@ -22,7 +22,7 @@ def extract_date_from_image(image_path: str):
         with open(image_path, 'rb') as f:
             payload = {
                 'apikey': OCR_API_KEY,
-                'language': 'ukr',  # Підтримка української
+                'language': 'auto',  # Підтримка української
                 'OCREngine': '2',  # Engine 2 зазвичай краще читає цифри та чеки
                 'scale': 'true'  # Автоматичний апскейл для кращого розпізнавання
             }
