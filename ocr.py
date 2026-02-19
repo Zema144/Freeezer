@@ -48,9 +48,9 @@ def extract_date_from_image(image_path: str):
     full_text = parsed_results[0].get('ParsedText', '')
     print(f"Знайдений текст: \n{full_text}\n")
 
-    # --- ЛОГІКА REGEX ЗАЛИШАЄТЬСЯ НАШОЮ ---
-    pattern_full = r'\b(\d{2})[./-](\d{2})[./-](\d{2,4})\b'
-    pattern_short = r'\b(\d{2})[./-](\d{2})\b'
+
+    pattern_full = r'(?<!\d)(\d{2})\s*[./,-]\s*(\d{2})\s*[./,-]\s*(\d{2,4})(?!\d)'
+    pattern_short = r'(?<!\d)(\d{2})\s*[./,-]\s*(\d{2})(?!\d)'
 
     found_dates = []
 
