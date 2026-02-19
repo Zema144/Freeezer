@@ -3,28 +3,60 @@ import re
 import os
 from datetime import datetime
 from dotenv import load_dotenv
+from PIL import Image  # Додали бібліотеку для роботи з фотографіями
 
 # Завантажуємо API ключ з .env
 load_dotenv()
-OCR_API_KEY = os.getenv("OCR_API_KEY", "K83107144588957")
+OCR_API_KEY = os.getenv("OCR_API_KEY", "ТВІЙ_КЛЮЧ_ТУТ")
+
+
+def compress_image_if_needed(image_path, max_size_kb=950):
+    """
+    Перевіряє розмір файлу. Якщо він більший за max_size_kb,
+    стискає зображення, щоб воно пройшло ліміти API.
+    """
+    file_size_kb = os.path.getsize(image_path) / 1024
+    if file_size_kb <= max_size_kb:
+        return image_path  # Розмір нормальний, нічого не робимо
+
+    print(f"Файл завеликий ({file_size_kb:.2f} KB). Починаємо стиснення...")
+    try:
+        with Image.open(image_path) as img:
+            # Переводимо в RGB (якщо фото раптом має прозорість/альфа-канал)
+            if img.mode != 'RGB':
+                img = img.convert('RGB')
+
+            # Зменшуємо роздільну здатність до макс 1600х1600 (зберігаючи пропорції)
+            img.thumbnail((1600, 1600))
+
+            # Перезберігаємо поверх старого файлу з оптимізацією
+            img.save(image_path, "JPEG", quality=75, optimize=True)
+
+        new_size = os.path.getsize(image_path) / 1024
+        print(f"Стиснення успішне! Новий розмір: {new_size:.2f} KB")
+    except Exception as e:
+        print(f"Помилка під час стиснення: {e}")
+
+    return image_path
 
 
 def extract_date_from_image(image_path: str):
     """
-    Відправляє фото на OCR.space API та витягує дату за допомогою Regex.
+    Стискає фото, відправляє на OCR.space API та витягує дату Regex-ом.
     """
-    url = 'https://api.ocr.space/parse/image'
+    # 1. СТИСКАЄМО ФОТО ПЕРЕД ВІДПРАВКОЮ
+    compress_image_if_needed(image_path)
 
+    url = 'https://api.ocr.space/parse/image'
     print(f"Відправляємо фото {image_path} на розпізнавання...")
 
-    # Відкриваємо файл і готуємо запит
     try:
         with open(image_path, 'rb') as f:
             payload = {
                 'apikey': OCR_API_KEY,
-                'language': 'auto',  # Підтримка української
-                'OCREngine': '2',  # Engine 2 зазвичай краще читає цифри та чеки
-                'scale': 'true'  # Автоматичний апскейл для кращого розпізнавання
+                'language': 'auto',
+                'OCREngine': '2',
+                'scale': 'true'
             }
             files = {'file': f}
 
@@ -34,12 +66,10 @@ def extract_date_from_image(image_path: str):
         print(f"Помилка з'єднання з API: {e}")
         return None
 
-    # Перевіряємо, чи немає помилок від самого API
     if result.get('IsErroredOnProcessing'):
         print(f"Помилка обробки на стороні API: {result.get('ErrorMessage')}")
         return None
 
-    # Витягуємо весь розпізнаний текст
     parsed_results = result.get('ParsedResults', [])
     if not parsed_results:
         print("API не повернуло жодного тексту.")
@@ -48,13 +78,12 @@ def extract_date_from_image(image_path: str):
     full_text = parsed_results[0].get('ParsedText', '')
     print(f"Знайдений текст: \n{full_text}\n")
 
-
+    # --- РОЗУМНА ЛОГІКА REGEX ---
     pattern_full = r'(?<!\d)(\d{2})\s*[./,-]\s*(\d{2})\s*[./,-]\s*(\d{2,4})(?!\d)'
     pattern_short = r'(?<!\d)(\d{2})\s*[./,-]\s*(\d{2})(?!\d)'
 
     found_dates = []
 
-    # 1. Шукаємо повні дати
     matches_full = re.findall(pattern_full, full_text)
     for match in matches_full:
         day, month, year = match
@@ -66,7 +95,6 @@ def extract_date_from_image(image_path: str):
         except ValueError:
             pass
 
-    # 2. Якщо повних немає, шукаємо короткі
     if not found_dates:
         matches_short = re.findall(pattern_short, full_text)
         current_year = datetime.now().year
@@ -78,7 +106,6 @@ def extract_date_from_image(image_path: str):
             except ValueError:
                 pass
 
-    # 3. Повертаємо найпізнішу дату
     if found_dates:
         final_date = max(found_dates)
         print(f"Витягнута дата: {final_date}")
